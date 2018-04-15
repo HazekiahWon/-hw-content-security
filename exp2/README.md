@@ -1,3 +1,6 @@
+# for TA
+all reports are written in jupyter notebooks  
+the code for the last assignment is in `stock.py`
 # notebooks
 - Q1 & Q2
 1&2 regex.ipynb
