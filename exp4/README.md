@@ -1,13 +1,18 @@
 # for TA
 all reports are written in jupyter notebooks  
-in this experiment, codes are under scrapy projects.
+in this experiment:  
+    1. `novels/`  
+        a scrapy project, the spider for crawling some novels  
+    2. `tokenization.py`  
+        a tokenizer for w2v
 # notebooks
-- 1 douban_top_250.ipynb  
-the corresponding scrapy project is under `douban`
-- 2 bilibili_vinfo_crawler.ipynb  
-the corresponding scrapy project is under `bilibili`
+- tokenization.ipynb  
+the report for this experiment
 
 # results
-under respective projects, you will find these at the top level:  
-- logger.txt
-- results.excel
+- `novels/save/`   
+    the directory storing my corpus - crawled from `www.booktxt.com`
+- `agg.txt`  
+    the aggregation file for the tokenization results of different novels
+- `novels.model`  
+    the w2v model trained using the preceding file

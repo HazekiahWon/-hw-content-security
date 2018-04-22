@@ -12,9 +12,9 @@ class DingdianNovelsSpider(scrapy.Spider):
     def parse(self, response):
         sections = response.xpath('//div[@class="novellist"]')
         # logging.info(sections)
-        for section in sections:
+        for section in sections[1:2]:
             books = section.xpath('.//li/a')
-            for book in books[:5]:
+            for book in books:
                 url= book.xpath('./@href').extract_first()
                 name = book.xpath('./text()').extract_first()
                 metadata = dict(book_name=name)
