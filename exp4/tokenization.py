@@ -5,7 +5,6 @@ import re
 from gensim.models import word2vec
 
 folder = r'novels\save'
-files = [os.path.join(folder,fname) for fname in os.listdir(folder)]
 merge_file = r'agg.txt'
 model_sp = r'novels.model'
 # jieba.analyse.set_stop_words('stop_words.txt')
@@ -18,6 +17,7 @@ def load_stopwords():
 def tokenize_novels():
     stop_words = load_stopwords()
     mf = open(merge_file, mode='w', encoding='utf-8')
+    files = [os.path.join(folder, fname) for fname in os.listdir(folder)]
     for file in files:
         f = open(file, mode='r', encoding='utf-8')
         for line in f.readlines():
