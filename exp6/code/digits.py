@@ -36,11 +36,12 @@ import numpy as np
 from numpy.linalg import norm
 
 # local modules
-from .common import clock, mosaic
+from common import clock, mosaic
 
 
 
-SZ = 20 # size of each digit is SZ x SZ
+SZ = 16 # size of each digit is SZ x SZ
+BIN_LEN = SZ // 2
 CLASS_N = 10
 DIGITS_FN = '../data/digits.png'
 
@@ -53,12 +54,34 @@ def split2d(img, cell_size, flatten=True):
         cells = cells.reshape(-1, sy, sx)
     return cells
 
-def load_digits(fn):
-    print('loading "%s" ...' % fn)
-    digits_img = cv.imread(fn, 0)
-    digits = split2d(digits_img, (SZ, SZ))
-    labels = np.repeat(np.arange(CLASS_N), len(digits)/CLASS_N)
+def load_digits(usps_dataset, gamma=0.5):
+    file = usps_dataset
+    digits = []
+    labels = []
+    with open(file) as f:
+        for line in f.readlines():
+            fields = line.split(' ')
+            # obtaining label
+            labels.append(eval(fields[0])-1)
+            digits.append(np.array([eval(f.split(':')[-1]) for f in fields[1:] if f != '\n']).reshape((16,16)))
+        digits = np.stack(digits)
+        labels = np.array(labels)
+
+    rg = digits.max()-digits.min()
+    digits = (digits-digits.min()) / rg
+    digits = np.power(digits, gamma)
+
+    # print('loading "%s" ...' % fn)
+    # digits_img = cv.imread(fn, 0)
+    # digits = split2d(digits_img, (SZ, SZ))
+    # labels = np.repeat(np.arange(CLASS_N), len(digits)/CLASS_N)
+    #===================================================
+    # from sklearn.datasets import load_digits
+    # mnist = load_digits()
+    # digits,labels = mnist['images'],mnist['target']
+    #===================================================
     return digits, labels
+
 
 def deskew(img):
     # mu-中心矩，m-几何矩
@@ -122,6 +145,7 @@ def evaluate_model(model, digits, samples, labels):
     # if not correctly predicted, set 0 all channels except Red to make it red
     vis = []
     for img, flag in zip(digits, resp == labels):
+        img = np.uint8((img-img.min()) / (img.max()-img.min()) * 255.)
         img = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
         if not flag:
             img[...,:2] = 0
@@ -134,14 +158,18 @@ def preprocess_simple(digits):
 def preprocess_hog(digits):
     samples = []
     for img in digits:
-        gx = cv.Sobel(img, cv.CV_32F, 1, 0)  #sobel算子 边缘检测 一阶差分滤波器
-        gy = cv.Sobel(img, cv.CV_32F, 0, 1)
+        # image grads
+        gx = cv.Sobel(img, -1, 1, 0)  #sobel算子 边缘检测 一阶差分滤波器
+        gy = cv.Sobel(img, -1, 0, 1)
+        # norm and angles
         mag, ang = cv.cartToPolar(gx, gy)  #极坐标变换 （模 角度）
         bin_n = 16  #区间数
-        # 2pi - 360, rad - ang, rad = ang * 2pi/360; ang = rad * 360/2pi
+        # normalize to 16 stepcases
         bin = np.int32(bin_n*ang/(2*np.pi))
-        bin_cells = bin[:10,:10], bin[10:,:10], bin[:10,10:], bin[10:,10:]
-        mag_cells = mag[:10,:10], mag[10:,:10], mag[:10,10:], mag[10:,10:]
+        bin_cells = bin[:BIN_LEN,:BIN_LEN], bin[BIN_LEN:,:BIN_LEN], bin[:BIN_LEN, BIN_LEN:], bin[BIN_LEN:,BIN_LEN:]
+        # norm as weights for each cell
+        mag_cells = mag[:BIN_LEN,:BIN_LEN], mag[BIN_LEN:,:BIN_LEN], mag[:BIN_LEN, BIN_LEN:], mag[BIN_LEN:,BIN_LEN:]
+        # 16 bins for each cell, a weighted count for each stepcase
         hists = [np.bincount(b.ravel(), m.ravel(), bin_n) for b, m in zip(bin_cells, mag_cells)]    #统计梯度直方图
         hist = np.hstack(hists)
 
@@ -150,16 +178,21 @@ def preprocess_hog(digits):
         eps = 1e-7
         hist /= hist.sum() + eps # normalize by summing to 1
         hist = np.sqrt(hist)
-        hist /= norm(hist) + eps # ??? sum(sqrt(x)^2)
+        # hist /= norm(hist) + eps # ??? sum(sqrt(x)^2)
 
         samples.append(hist)
     return np.float32(samples)
 
+def show(name,im):
+    cv.imshow(name,im)
+    cv.waitKey(0)
+    cv.destroyWindow(name)
+
 
 if __name__ == '__main__':
-    print(__doc__)
+    # print(__doc__)
 
-    digits, labels = load_digits(DIGITS_FN) #图像切分 导入
+    digits, labels = load_digits(r'..\data\usps') #图像切分 导入
 
     print('preprocessing...')
     # shuffle digits
@@ -171,11 +204,11 @@ if __name__ == '__main__':
     # hog
     samples = preprocess_hog(deskewed_digits)   #计算hog特征
     # split into validation sets
-    train_n = int(0.9*len(samples)) #划分训练测试集
+    train_n = int(0.8*len(samples)) #划分训练测试集
     print(train_n)
     # what is mosaic?
 
-    cv.imshow('test set', mosaic(25, digits[train_n:]))
+    show('test set', mosaic(25, digits[train_n:]))
 
     # the original digits
     digits_train, digits_test = np.split(deskewed_digits, [train_n])
@@ -188,13 +221,13 @@ if __name__ == '__main__':
     model = KNearest(k=4)
     model.train(samples_train, labels_train) # provide x, y
     vis = evaluate_model(model, digits_test, samples_test, labels_test)
-    cv.imshow('KNearest test', vis)
+    show('KNearest test', vis)
 
     print('training SVM...')    #SVM分类器
     model = SVM(C=2.67, gamma=5.383)
     model.train(samples_train, labels_train)
     vis = evaluate_model(model, digits_test, samples_test, labels_test)
-    cv.imshow('SVM test', vis)
+    show('SVM test', vis)
     print('saving SVM as "digits_svm.dat"...')
     model.save('digits_svm.dat')
 
